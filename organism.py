@@ -8,14 +8,17 @@ class Organism:
 
     def __init__(self, scene, size=None, neural_network: np.ndarray = None,
                  time_appeared=0):
-        self.scene = scene
+        # self.scene = scene
         self.size = size
         if size is None:
-            self.size = (round(random.random(), 2) * (1 - FLOWER_ENERGY_SCALE) +
-                         FLOWER_ENERGY_SCALE)
+            self.size = round(random.random() * (1 - FLOWER_ENERGY_SCALE) +
+                              FLOWER_ENERGY_SCALE, 2)
         self.neural_network = neural_network
         if neural_network is None:
             self.generate_random_network()
+
+        self.ate_amount = 0
+
         self.energy = BASE_ENERGY
         self.time_lived = 0
         self.coordinates = (
@@ -25,10 +28,10 @@ class Organism:
 
         self.is_alive = True
         self.time_appeared = time_appeared
-        self.__start_data = repr(self)
+        # self.__start_data = repr(self)
 
-        self.obj = scene.new_organism(self)
-        scene.animations[-1].append(FadeIn(self.obj))
+        # self.obj = scene.new_organism(self)
+        # scene.animations[-1].append(FadeIn(self.obj))
 
     def generate_random_network(self):
         input_hl_weights = np.random.random(size=(INPUT_LAYER,
@@ -50,8 +53,9 @@ class Organism:
             return other._eat(self)
 
         other.is_alive = False
+        self.ate_amount += 1
         self.energy += other.size * BASE_ENERGY_RECEIVE
-        self.scene.animations[-1].append(FadeOut(other.obj))
+        # self.scene.animations[-1].append(FadeOut(other.obj))
         return other
 
     def make_move(self, eyes_data=None):
@@ -79,8 +83,8 @@ class Organism:
             circle_center[1] + numpy.sin(
                 self.angle - numpy.pi / 2 + angular) * r)
         self.coordinates = (
-            min(max(self.coordinates[0], 0), MAX_X_COORD),
-            min(max(self.coordinates[1], 0), MAX_Y_COORD)
+            round(min(max(self.coordinates[0], 0), MAX_X_COORD), 2),
+            round(min(max(self.coordinates[1], 0), MAX_Y_COORD), 2)
         )
         self.angle += angular
 
@@ -96,9 +100,9 @@ class Organism:
         #     angular,
         #     about_point=UP * circle_center[1] + RIGHT * circle_center[0]
         # ))
-        self.scene.animations[-1].append(self.obj.animate.move_to(
-            self.coordinates[0] * RIGHT + self.coordinates[1] * UP
-        ))
+        # self.scene.animations[-1].append(self.obj.animate.move_to(
+        #     self.coordinates[0] * RIGHT + self.coordinates[1] * UP
+        # ))
 
     def update_view(self, other, view_data):
         import update_views
@@ -111,12 +115,23 @@ class Organism:
                                   self.angle - half_angle,
                                   other.size)
 
-    def __str__(self):
-        return self.__start_data
+    def update_walls(self, view_data):
+        import update_views
+        half_angle = (MIN_VIEW_ANGLE + (MAX_VIEW_ANGLE -
+                                        MIN_VIEW_ANGLE)
+                      * (1 - self.size))
+        update_views.update_view_walls(self.coordinates,
+                                       view_data,
+                                       self.angle + half_angle,
+                                       self.angle - half_angle)
+
+    # def __str__(self):
+    #     return self.__start_data
 
     def __repr__(self):
         return f'{self.time_appeared}, {self.size}, {self.coordinates}, ' \
-               f'{self.angle}, {{{self.neural_network[0].tolist()}; ' \
+               f'{self.angle}, {self.energy}, {self.time_lived},    ' \
+               f'{{{self.neural_network[0].tolist()}; ' \
                f'{self.neural_network[1].tolist()}}}\n'
 
     def network_vector(self):

@@ -10,28 +10,26 @@ from organism import Organism, Flower
 
 
 class Generation:
-    def __init__(self, number, scene):
+    def __init__(self, scene):
         self.scene = scene
-        self.number = number
         self.organisms: set[Organism] = set()
         self.flowers: set[Flower] = set()
         self.blocks: list[list[list[Organism]]] = \
             [[list() for _ in range(10)] for _ in range(10)]
 
-        self.organisms_data = ''
-        self.flowers_data = ''
+        # self.organisms_data = ''
+        # self.flowers_data = ''
         self._initialize_flowers(constants.FLOWERS_AMOUNT)
 
-        self.org_frames = []
-        self.flower_frames = []
         self.average_lifetimes = []
+        self.average_energy = []
 
     def _initialize_flowers(self, amount, time=9):
         for _ in range(amount):
             flower = Flower(self.scene, time)
             self._add_organism_to_blocks(flower)
             self.flowers.add(flower)
-            self.flowers_data += str(flower)
+            # self.flowers_data += str(flower)
 
     def _add_organism_to_blocks(self, organism):
         x_coord = int(organism.coordinates[0] // 10)
@@ -72,13 +70,13 @@ class Generation:
             organism = Organism(self.scene)
             self.organisms.add(organism)
             self._add_organism_to_blocks(organism)
-            self.organisms_data += str(organism)
+            # self.organisms_data += str(organism)
 
     def add_organisms(self, organisms):
         for organism in organisms:
             self.organisms.add(organism)
             self._add_organism_to_blocks(organism)
-            self.organisms_data += str(organism)
+            # self.organisms_data += str(organism)
 
     # def add_mutated(self, amount):
     #     organisms = []
@@ -94,58 +92,45 @@ class Generation:
                             network_vector.size // 100)
         mutation_indices = np.array(
             random.sample(range(network_vector.size), num_mutations))
-        random_values = np.random.uniform(-0.5, 0.5, mutation_indices.size)
+        random_values = np.random.random(mutation_indices.size) - 0.5
         network_vector[mutation_indices] = (network_vector[mutation_indices] +
                                             random_values)
         new_size = parent.size
         if random.random() < constants.MUTATION_PERCENT / 100:
-            new_size = min(max(round(random.random() * 0.2 - 0.1, 2),
-                               FLOWER_ENERGY_SCALE), 1)
+            new_size += random.random() * 0.4 - 0.2
+            new_size = round(min(max(new_size, FLOWER_ENERGY_SCALE), 1), 2)
         network_matrix = Organism.neural_network_from_vector(network_vector)
         for idx, matrix in enumerate(network_matrix):
             network_matrix[idx] = np.round(matrix, 2)
         return Organism(self.scene, new_size, network_matrix, time)
 
-    def run(self, time=-1, path_to_file='result.txt'):
+    def run(self, time=-1, path_to_flower_file='flowers.txt',
+            path_to_organism_file='organisms.txt',
+            path_to_result_file='results.txt'):
         time_passed = 0
-        self.scene.play(*self.scene.animations[-1], run_time=0.05)
+        # self.scene.play(*self.scene.animations[-1], run_time=0.05)
         is_not_over = True
-        time_to_move = 0
-        time_to_coli = 0
-        time_to_mutate = 0
-        time_for_move = 0
-        # time_for_average = 0
         while time != time_passed and self.organisms and \
                 len(self.organisms) < 500 and is_not_over:
             try:
-                stttart = tl.perf_counter()
                 time_passed += 1
-                start = tl.perf_counter()
                 self._move_everyone()
-                time_to_move += tl.perf_counter() - start
-                start = tl.perf_counter()
                 self._check_collisions(time_passed)
-                time_to_coli += tl.perf_counter() - start
                 if time_passed % 10 == 0:
-                    # start = tl.perf_counter()
                     self._average_lifetime()
-                    # time_for_average += tl.perf_counter() - start
-                    start = tl.perf_counter()
+                    self._average_energy()
                     self._born_mutated(time_passed)
-                    time_to_mutate += tl.perf_counter() - start
                 if time_passed % 100 == 0:
                     print(f'{time_passed:5} -> {len(self.organisms):3}, '
-                          f'{self.average_lifetimes[-1]}\n'
-                          f'{time_for_move:3} = {time_to_move:3} + '
-                          f'{time_to_coli:3} + {time_to_mutate:3}')
-                    time_to_move = 0
-                    time_to_coli = 0
-                    time_to_mutate = 0
-                    time_for_move = 0
-                time_for_move += tl.perf_counter() - stttart
+                          f'{self.average_lifetimes[-1]} - '
+                          f'{self.average_energy[-1]}')
+                    # f'{time_for_move:3} = {time_to_move:3} + '
+                    # f'{time_to_coli:3} + {time_to_mutate:3}')
+                # self.write_down(path_to_organism_file, path_to_flower_file,
+                #                 time_passed)
             except KeyboardInterrupt:
                 is_not_over = False
-        self.write_down(path_to_file)
+        self.write_results(path_to_result_file)
         print(time_passed)
 
     def _average_lifetime(self):
@@ -154,10 +139,16 @@ class Generation:
                     self.organisms)) / len(self.organisms)
         )
 
+    def _average_energy(self):
+        self.average_energy.append(
+            sum(map(lambda x: x.energy,
+                    self.organisms)) / len(self.organisms)
+        )
+
     def _born_mutated(self, time):
         children = []
         for parent in self.organisms:
-            if random.random() < parent.energy / (BASE_ENERGY * 2):
+            if random.random() < parent.ate_amount / BASE_ENERGY:
                 parent.energy /= 2
                 child = self.mutate_from_organism(parent, time)
                 children.append(child)
@@ -187,6 +178,7 @@ class Generation:
                         if other is organism:
                             continue
                         organism.update_view(other, view_data)
+            organism.update_walls(view_data)
             # for other in self.flowers:
             #     if other.is_alive and other is not organism:
             #         organism.update_view(other, view_data)
@@ -197,11 +189,11 @@ class Generation:
             if organism.energy < 0:
                 remove.add(organism)
                 organism.is_alive = False
-                self.scene.animations[-1]. \
-                    append(manimlib.FadeOut(organism.obj))
+                # self.scene.animations[-1]. \
+                #     append(manimlib.FadeOut(organism.obj))
             else:
                 self._add_organism_to_blocks(organism)
-        self.play_anim()
+        # self.play_anim()
         for dead in remove:
             self.organisms.remove(dead)
             del dead
@@ -227,9 +219,9 @@ class Generation:
     #     self.scene.wait(0.01)
     #     self.scene.play(*post_anims, run_time=0.000000001)
 
-    def play_anim(self):
-        self.scene.play(*self.scene.animations[-1], run_time=0.000000001)
-        self.scene.next_move_setup()
+    # def play_anim(self):
+    #     self.scene.play(*self.scene.animations[-1], run_time=0.000000001)
+    #     self.scene.next_move_setup()
 
     def _check_collisions(self, time):
         flowers_to_spawn = 0
@@ -254,11 +246,29 @@ class Generation:
                         del dead
         self._initialize_flowers(flowers_to_spawn, time)
 
-    def write_down(self, path):
-        data = f'GENERATION #{self.number}\n' \
-               f'---organisms---\n' \
-               f'{self.organisms_data}\n' \
-               f'---flowers---\n' \
-               f'{self.flowers_data}'
-        with open(path, 'a') as output:
+    def write_down(self, organisms, flowers, time):
+        with open(organisms, 'a') as organisms_output:
+            data = f'{time}:'
+            for organism in self.organisms:
+                data += f'{organism.coordinates};'
+            data += '\n'
+            organisms_output.write(data)
+        with open(flowers, 'a') as flowers_output:
+            data = f'{time}:'
+            for flower in self.flowers:
+                data += f'{flower.coordinates};'
+            data += '\n'
+            flowers_output.write(data)
+
+    def write_results(self, path):
+        with open(path, 'w') as output:
+            data = ':=-organisms-=:\n'
+            for organism in self.organisms:
+                data += organism.__repr__()
+            data += ':=-flowers-=:\n'
+            for flower in self.flowers:
+                data += repr(flower)
+
             output.write(data)
+            output.write(', '.join(map(str, self.average_energy)) + '\n')
+            output.write(', '.join(map(str, self.average_lifetimes)) + '\n')

@@ -15,11 +15,11 @@ class MyScene(Scene):
         self.camera.frame.set_height(105).move_to(UR * 50)
         self.add(Square(101).move_to(UR * 49.5))
         self.animations = [list()]
-        sim = Generation(0, self)
+        sim = Generation(self)
         random.seed(round(time.time() * 1000) % (2 ** 32 - 1))
         numpy.random.seed(round(time.time() * 1000) % (2 ** 32 - 1))
         sim.set_random_population(constants.POPULATION_SIZE)
-        sim.run(10_000)
+        sim.run()
         print('ready')
 
     def next_move_setup(self):
